@@ -723,6 +723,22 @@ npm run typecheck
 npm run clean
 ```
 
+## Release Flow
+
+BetterLogs now includes GitHub Actions for validation and publishing:
+
+- `CI` runs on pushes and pull requests and verifies install, typecheck, build, and publish contents
+- `Publish` runs when a GitHub release is published, uses npm trusted publishing, and publishes with provenance
+
+Recommended release flow:
+
+```bash
+npm version patch
+git push origin main --follow-tags
+```
+
+Then publish a GitHub release for the new tag from the repository UI to trigger npm publication automatically.
+
 ## Design Notes
 
 `@orionaisystems/betterlogs` v0.5.0 keeps the runtime small while separating:
