@@ -1,7 +1,26 @@
-node_modules
-dist
-*.tsbuildinfo
-tmp
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Editors
+.vscode/*
+!.vscode/settings.json
+.idea/
+
+# Logs
 *.log
+
+# Local environment
 .env
 .env.*
+
+# Dependencies and build output
+node_modules/
+dist/
+build/
+.next/
+.astro/
+target/
+src-tauri/target/
+coverage/
