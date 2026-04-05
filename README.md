@@ -1,17 +1,17 @@
-# @trs/betterlogs
+# @orionaisystems/betterlogs
 
-`@trs/betterlogs` is a reusable logging package for TypeScript projects that want elegant console output locally and stronger delivery guarantees in production. It keeps the default developer experience clean while supporting scoped child loggers, structured metadata, redaction, async context propagation, durable batching, pluggable transports, broker helpers, health-aware delivery, and framework adapters.
+`@orionaisystems/betterlogs` is a reusable logging package for TypeScript projects that want elegant console output locally and stronger delivery guarantees in production. It keeps the default developer experience clean while supporting scoped child loggers, structured metadata, redaction, async context propagation, durable batching, pluggable transports, broker helpers, health-aware delivery, and framework adapters.
 
 ## Installation
 
 ```bash
-npm install @trs/betterlogs
+npm install @orionaisystems/betterlogs
 ```
 
 For browser-focused usage, import the dedicated subpath:
 
 ```ts
-import { createBrowserLogger } from "@trs/betterlogs/browser";
+import { createBrowserLogger } from "@orionaisystems/betterlogs/browser";
 ```
 
 ## Quick Start
@@ -23,7 +23,7 @@ import {
   createLogger,
   createPartialKeyRedactionRule,
   runWithLogContext
-} from "@trs/betterlogs";
+} from "@orionaisystems/betterlogs";
 
 const log = createLogger({
   scope: "api",
@@ -98,7 +98,7 @@ Example output:
 Creates a logger instance.
 
 ```ts
-import { createLogger } from "@trs/betterlogs";
+import { createLogger } from "@orionaisystems/betterlogs";
 
 const log = createLogger();
 ```
@@ -175,7 +175,7 @@ import {
   createAsyncContextBindingsProvider,
   createLogger,
   runWithLogContext
-} from "@trs/betterlogs";
+} from "@orionaisystems/betterlogs";
 
 const log = createLogger({
   scope: "worker",
@@ -234,7 +234,7 @@ import {
   createPartialKeyRedactionRule,
   createPathRedactionRule,
   createLogger
-} from "@trs/betterlogs";
+} from "@orionaisystems/betterlogs";
 
 const log = createLogger({
   redact: [
@@ -258,7 +258,7 @@ import {
   createDurableBatchingTransport,
   createKafkaTransport,
   createLogger
-} from "@trs/betterlogs";
+} from "@orionaisystems/betterlogs";
 
 const kafkaTransport = createKafkaTransport({
   producer: {
@@ -308,8 +308,7 @@ import {
   createHttpTransport,
   createLogger,
   getTransportHealth
-} from "@trs/betterlogs";
-
+} from "@orionaisystems/betterlogs";
 const delivery = createCircuitBreakerTransport({
   name: "log-ingest",
   transport: createHealthTrackedTransport({
@@ -339,7 +338,7 @@ BetterLogs ships lightweight helpers for common broker-style destinations withou
 ### Generic Queue Transport
 
 ```ts
-import { createLogger, createQueueTransport } from "@trs/betterlogs";
+import { createLogger, createQueueTransport } from "@orionaisystems/betterlogs";
 
 const queueLog = createLogger({
   transports: [
@@ -355,7 +354,7 @@ const queueLog = createLogger({
 ### SQS Helper
 
 ```ts
-import { createLogger, createSqsTransport } from "@trs/betterlogs";
+import { createLogger, createSqsTransport } from "@orionaisystems/betterlogs";
 
 const sqsLog = createLogger({
   transports: [
@@ -375,7 +374,7 @@ const sqsLog = createLogger({
 ### Kafka Helper
 
 ```ts
-import { createKafkaTransport, createLogger } from "@trs/betterlogs";
+import { createKafkaTransport, createLogger } from "@orionaisystems/betterlogs";
 
 const kafkaLog = createLogger({
   transports: [
@@ -395,7 +394,7 @@ const kafkaLog = createLogger({
 ### BullMQ Helper
 
 ```ts
-import { createBullMqTransport, createLogger } from "@trs/betterlogs";
+import { createBullMqTransport, createLogger } from "@orionaisystems/betterlogs";
 
 const workerLog = createLogger({
   transports: [
@@ -419,7 +418,7 @@ const workerLog = createLogger({
 When logs are headed to ingestion pipelines, queue consumers, or an MCP layer, flattened JSON can be easier to query and route.
 
 ```ts
-import { createJsonFormatter } from "@trs/betterlogs";
+import { createJsonFormatter } from "@orionaisystems/betterlogs";
 
 const formatter = createJsonFormatter({
   flatten: {
@@ -436,7 +435,7 @@ This converts nested sections like `context.user.id` and `meta.durationMs` into 
 ## Buffered Transports And Flush Support
 
 ```ts
-import { createBufferedTransport, createLogger } from "@trs/betterlogs";
+import { createBufferedTransport, createLogger } from "@orionaisystems/betterlogs";
 
 const records: string[] = [];
 
@@ -465,7 +464,7 @@ import {
   createHttpTransport,
   createRetryingTransport,
   createLogger
-} from "@trs/betterlogs";
+} from "@orionaisystems/betterlogs";
 
 const transport = createRetryingTransport({
   transport: createHttpTransport({
@@ -484,7 +483,7 @@ const log = createLogger({ transports: [transport] });
 ## File Transport, Rotation, And Retention
 
 ```ts
-import { createFileTransport, createLogger } from "@trs/betterlogs";
+import { createFileTransport, createLogger } from "@orionaisystems/betterlogs";
 
 const fileLog = createLogger({
   scope: "audit",
@@ -521,7 +520,7 @@ The file transport writes asynchronously, rotates files once a size threshold is
 The default formatter for local development and service logs.
 
 ```ts
-import { createPrettyFormatter } from "@trs/betterlogs";
+import { createPrettyFormatter } from "@orionaisystems/betterlogs";
 ```
 
 ### JSON Formatter
@@ -529,7 +528,7 @@ import { createPrettyFormatter } from "@trs/betterlogs";
 Best for pipelines, ingestion, or machine processing.
 
 ```ts
-import { createJsonFormatter } from "@trs/betterlogs";
+import { createJsonFormatter } from "@orionaisystems/betterlogs";
 ```
 
 ### Browser Formatter And Browser Entry
@@ -540,7 +539,7 @@ For browser-targeted imports, use the dedicated subpath:
 import {
   createBrowserConsoleTransport,
   createBrowserLogger
-} from "@trs/betterlogs/browser";
+} from "@orionaisystems/betterlogs/browser";
 
 const log = createBrowserLogger({ scope: "ui" });
 log.info("Mounted application shell");
@@ -553,7 +552,7 @@ BetterLogs stays dependency-light, so the framework adapters are opt-in helpers 
 ### Express-Style Middleware
 
 ```ts
-import { createExpressLoggingMiddleware, createLogger } from "@trs/betterlogs";
+import { createExpressLoggingMiddleware, createLogger } from "@orionaisystems/betterlogs";
 
 const baseLogger = createLogger({ scope: "http" });
 
@@ -566,7 +565,7 @@ export const requestLogger = createExpressLoggingMiddleware(baseLogger, {
 ### Fastify-Style Hooks
 
 ```ts
-import { createFastifyLoggingHooks, createLogger } from "@trs/betterlogs";
+import { createFastifyLoggingHooks, createLogger } from "@orionaisystems/betterlogs";
 
 const baseLogger = createLogger({ scope: "http" });
 
@@ -578,7 +577,7 @@ export const hooks = createFastifyLoggingHooks(baseLogger, {
 ### Koa-Style Middleware
 
 ```ts
-import { createKoaLoggingMiddleware, createLogger } from "@trs/betterlogs";
+import { createKoaLoggingMiddleware, createLogger } from "@orionaisystems/betterlogs";
 
 const baseLogger = createLogger({ scope: "http" });
 
@@ -590,7 +589,7 @@ export const koaMiddleware = createKoaLoggingMiddleware(baseLogger, {
 ### Fetch-Style Request Wrapper
 
 ```ts
-import { createLogger, withFetchRequestLogging } from "@trs/betterlogs";
+import { createLogger, withFetchRequestLogging } from "@orionaisystems/betterlogs";
 
 const baseLogger = createLogger({ scope: "http" });
 
@@ -608,14 +607,14 @@ export async function handle(request: Request) {
 
 ## OpenTelemetry Bridge Utilities
 
-`@trs/betterlogs` stays dependency-light, so the OpenTelemetry helpers work through small compatible interfaces rather than taking a hard dependency on the OTel SDK.
+`@orionaisystems/betterlogs` stays dependency-light, so the OpenTelemetry helpers work through small compatible interfaces rather than taking a hard dependency on the OTel SDK.
 
 ```ts
 import {
   createLogger,
   createOpenTelemetryLogHook,
   createOpenTelemetrySpanHook
-} from "@trs/betterlogs";
+} from "@orionaisystems/betterlogs";
 
 const emitted: unknown[] = [];
 
@@ -641,7 +640,7 @@ const log = createLogger({
 import {
   createTestLogger,
   snapshotRecords
-} from "@trs/betterlogs";
+} from "@orionaisystems/betterlogs";
 
 const { logger, transport } = createTestLogger({
   timestamps: false,
@@ -661,7 +660,7 @@ The memory transport and snapshot helpers make it easy to assert on structured l
 Serializers let you normalize domain objects before they reach formatters or transports.
 
 ```ts
-import { createLogger, type LogSerializer } from "@trs/betterlogs";
+import { createLogger, type LogSerializer } from "@orionaisystems/betterlogs";
 
 class Money {
   constructor(
@@ -726,7 +725,7 @@ npm run clean
 
 ## Design Notes
 
-`@trs/betterlogs` v0.5.0 keeps the runtime small while separating:
+`@orionaisystems/betterlogs` v0.5.0 keeps the runtime small while separating:
 
 - record creation and ambient binding resolution
 - redaction and serialization
