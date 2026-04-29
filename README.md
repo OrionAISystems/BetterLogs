@@ -138,6 +138,7 @@ type LoggerOptions = {
   formatter?: LogFormatter;
   transports?: LogTransport | LogTransport[];
   hooks?: LogHook | LogHook[];
+  sample?: LogSampler | LogSampler[];
   serializers?: LogSerializer | LogSerializer[];
   redact?: LogRedactionRule | LogRedactionRule[];
   context?: Record<string, unknown>;
@@ -159,6 +160,7 @@ type LoggerOptions = {
 | `formatter` | `LogFormatter` | `undefined` | Overrides the default formatter for the built-in console transport. |
 | `transports` | `LogTransport \| LogTransport[]` | built-in console transport | Supplies custom transports. Pass `[]` to disable default output. |
 | `hooks` | `LogHook \| LogHook[]` | `[]` | Observes each `LogRecord` before transports run. Hooks may be async. |
+| `sample` | `LogSampler \| LogSampler[]` | `[]` | Drops records before hooks and transports run. Useful for cost control, high-volume debug logs, and burst protection. |
 | `serializers` | `LogSerializer \| LogSerializer[]` | `[]` | Custom serializers for domain objects in metadata or context. |
 | `redact` | `LogRedactionRule \| LogRedactionRule[]` | `[]` | Redaction rules for sensitive keys or exact paths. Supports full replacement and partial masking. |
 | `context` | `Record<string, unknown>` | `{}` | Attaches reusable structured context to every entry. |
@@ -455,6 +457,36 @@ await log.flush();
 
 Buffered transports are useful when you want to batch network, file, or analytics writes without making the logging callsite async.
 
+## Sampling And Burst Rate Limiting
+
+Use samplers when you want to reduce log volume before hooks, formatters, or transports do any downstream work. Samplers run after level filtering, record creation, serialization, and redaction, so custom decisions can inspect the structured `LogRecord` without exposing raw sensitive input.
+
+```ts
+import {
+  createBurstRateLimitSampler,
+  createLogger,
+  createPercentageSampler
+} from "@orionaisystems/betterlogs";
+
+const log = createLogger({
+  scope: "worker",
+  minLevel: "debug",
+  sample: [
+    createPercentageSampler({
+      rate: 0.1,
+      levels: ["debug", "trace"]
+    }),
+    createBurstRateLimitSampler({
+      maxRecords: 100,
+      intervalMs: 60_000,
+      levels: ["debug", "trace", "info"]
+    })
+  ]
+});
+```
+
+Percentage sampling is useful for noisy low-severity records. Burst rate limiting is useful when a hot loop, retry storm, or repeated integration failure could otherwise multiply transport cost. If multiple samplers are configured, a record must pass every sampler before hooks and transports receive it.
+
 ## Retry And Backoff Policies
 
 Wrap a transport when you want retry behavior without baking retry logic into every destination.
@@ -747,11 +779,12 @@ Then publish a GitHub release for the new tag from the repository UI to trigger 
 
 ## Design Notes
 
-`@orionaisystems/betterlogs` v0.5.0 keeps the runtime small while separating:
+`@orionaisystems/betterlogs` v0.7.0 keeps the runtime small while separating:
 
 - record creation and ambient binding resolution
 - redaction and serialization
 - formatter selection and JSON shaping
+- sampling and burst rate limiting
 - transport delivery, batching, retry, health tracking, and flushing
 - hook observation
 - Node and browser entry points
@@ -763,7 +796,6 @@ That separation makes it practical to add more outputs and integrations later wi
 
 Future ideas for the package:
 
-- configurable log sampling and burst rate limiting
 - transport metrics exporters and richer delivery diagnostics
 - schema-driven structured event helpers for shared internal log contracts
 - first-party type tests for public API stability across the root and browser subpaths

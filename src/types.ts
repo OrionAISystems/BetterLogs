@@ -51,6 +51,23 @@ export interface LogTransport {
 
 export type LogHook = (record: LogRecord) => AsyncOrSync<void>;
 
+export type LogSampler = (record: LogRecord) => boolean;
+
+export type SamplingLevelFilter = LogLevel | readonly LogLevel[];
+
+export interface SamplingPolicyOptions {
+  readonly rate: number;
+  readonly levels?: SamplingLevelFilter;
+  readonly random?: () => number;
+}
+
+export interface RateLimitSamplerOptions {
+  readonly maxRecords: number;
+  readonly intervalMs: number;
+  readonly levels?: SamplingLevelFilter;
+  readonly now?: () => number;
+}
+
 export interface LogSerializer<T = unknown> {
   readonly name?: string;
   test(value: unknown): value is T;
@@ -340,6 +357,7 @@ export interface BrowserLoggerOptions extends LoggerBindings {
   readonly formatter?: LogFormatter;
   readonly transports?: MaybeArray<LogTransport>;
   readonly hooks?: MaybeArray<LogHook>;
+  readonly sample?: MaybeArray<LogSampler>;
   readonly serializers?: MaybeArray<LogSerializer>;
   readonly redact?: MaybeArray<LogRedactionRule>;
   readonly bindingsProvider?: LoggerBindingsProvider;
@@ -356,6 +374,7 @@ export interface LoggerOptions extends LoggerBindings {
   readonly formatter?: LogFormatter;
   readonly transports?: MaybeArray<LogTransport>;
   readonly hooks?: MaybeArray<LogHook>;
+  readonly sample?: MaybeArray<LogSampler>;
   readonly serializers?: MaybeArray<LogSerializer>;
   readonly redact?: MaybeArray<LogRedactionRule>;
   readonly bindingsProvider?: LoggerBindingsProvider;

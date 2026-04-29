@@ -42,3 +42,30 @@ const browserLogger = browserEsm.createBrowserLogger({
 
 browserLogger.info("export smoke check");
 await browserLogger.flush();
+
+const { logger: sampledLogger, transport } = rootEsm.createTestLogger({
+  sample: [
+    rootEsm.createBurstRateLimitSampler({
+      maxRecords: 2,
+      intervalMs: 60_000
+    })
+  ]
+});
+
+sampledLogger.info("sampled one");
+sampledLogger.info("sampled two");
+sampledLogger.info("sampled three");
+await sampledLogger.flush();
+
+if (transport.records.length !== 2) {
+  throw new Error("Burst rate limit sampler did not drop records after the configured limit.");
+}
+
+const browserSampler = browserEsm.createPercentageSampler({
+  rate: 0,
+  levels: "debug"
+});
+
+if (!browserSampler({ level: "info" }) || browserSampler({ level: "debug" })) {
+  throw new Error("Browser percentage sampler level filtering behaved unexpectedly.");
+}

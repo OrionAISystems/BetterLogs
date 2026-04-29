@@ -1,6 +1,6 @@
 {
   "name": "@orionaisystems/betterlogs",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A durable, context-aware logger for Node.js and browser TypeScript projects.",
   "homepage": "https://github.com/OrionAISystems/BetterLogs#readme",
   "repository": {

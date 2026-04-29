@@ -34,6 +34,11 @@ export function createBrowserLogger(
 
 export { createBrowserConsoleTransport } from "./transports";
 export { createBrowserFormatter } from "./format";
+export {
+  createBurstRateLimitSampler,
+  createCompositeSampler,
+  createPercentageSampler
+} from "./sampling";
 export type {
   BrowserConsoleTransportOptions,
   BrowserFormatterOptions,
@@ -41,5 +46,6 @@ export type {
   Logger,
   LoggerOptions,
   LogRecord,
+  LogSampler,
   LogTransport
 } from "./types";

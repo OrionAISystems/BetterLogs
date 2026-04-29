@@ -17,6 +17,7 @@ import type {
   LogHook,
   LogRecord,
   LogRedactionRule,
+  LogSampler,
   LogSerializer,
   LogTimer,
   LogTimerFailOptions,
@@ -45,6 +46,7 @@ type ResolvedLoggerOptions = {
   readonly formatter: LogFormatter | undefined;
   readonly transports: readonly LogTransport[];
   readonly hooks: readonly LogHook[];
+  readonly samplers: readonly LogSampler[];
   readonly serializers: readonly LogSerializer[];
   readonly redactions: readonly LogRedactionRule[];
   readonly context: LogContext;
@@ -156,6 +158,7 @@ function resolveOptions(
   const formatter = options.formatter;
   const transports = normalizeArray(options.transports);
   const hooks = normalizeArray(options.hooks);
+  const samplers = normalizeArray(options.sample);
   const serializers = normalizeArray(options.serializers);
   const redactions = normalizeArray(options.redact);
 
@@ -183,6 +186,7 @@ function resolveOptions(
           ]
         : transports,
     hooks,
+    samplers,
     serializers,
     redactions,
     context: mergeContext({}, options.context),
@@ -330,6 +334,20 @@ function createRecord(
   };
 }
 
+function shouldEmitRecord(
+  record: LogRecord,
+  samplers: readonly LogSampler[]
+): boolean {
+  return samplers.every((sampler) => {
+    try {
+      return sampler(record);
+    } catch (error) {
+      reportInternalError("sampler", error);
+      return true;
+    }
+  });
+}
+
 function buildLogger(config: ResolvedLoggerOptions): Logger {
   const emit = (level: LogLevel, message: string, meta?: unknown): void => {
     if (!shouldLog(level, config.minLevel)) {
@@ -337,6 +355,10 @@ function buildLogger(config: ResolvedLoggerOptions): Logger {
     }
 
     const record = createRecord(level, message, meta, config);
+
+    if (!shouldEmitRecord(record, config.samplers)) {
+      return;
+    }
 
     for (const hook of config.hooks) {
       invokeAndTrack(config.runtime, "hook", () => hook(record));

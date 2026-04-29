@@ -45,6 +45,11 @@ export {
 } from "./redact";
 export { createRetryingTransport, executeWithRetry, resolveRetryPolicy } from "./retry";
 export {
+  createBurstRateLimitSampler,
+  createCompositeSampler,
+  createPercentageSampler
+} from "./sampling";
+export {
   createBufferedTransport,
   createBrowserConsoleTransport,
   createConsoleTransport
@@ -98,6 +103,7 @@ export type {
   LogLevel,
   LogRecord,
   LogRedactionRule,
+  LogSampler,
   LogSerializer,
   LogTimer,
   LogTimerFailOptions,
@@ -115,10 +121,13 @@ export type {
   OpenTelemetrySpanLike,
   PrettyFormatterOptions,
   QueueTransportOptions,
+  RateLimitSamplerOptions,
   RedactionPattern,
   RetryingTransportOptions,
   RetryPolicyOptions,
   RequestLoggerBindingOptions,
+  SamplingLevelFilter,
+  SamplingPolicyOptions,
   SerializedError,
   SqsLikeClient,
   SqsMessageAttribute,
