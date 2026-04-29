@@ -37,6 +37,9 @@ jobs:
       - name: Build package
         run: npm run build
 
+      - name: Smoke test package exports
+        run: npm run smoke:exports
+
       - name: Check whether version is already published
         id: package-check
         shell: bash

@@ -71,11 +71,11 @@ Example output:
 ```txt
 2026-03-30 11:45:22 SUCCESS [api:users] [req:req_123] [corr:corr_987] User created
 {
-  meta: {
-    durationMs: 18,
-    email: 'us********ple.com',
-    id: 'u_123',
-    password: '[REDACTED]'
+  "meta": {
+    "durationMs": 18,
+    "email": "us********ple.com",
+    "id": "u_123",
+    "password": "[REDACTED]"
   }
 }
 ```
@@ -545,6 +545,8 @@ const log = createBrowserLogger({ scope: "ui" });
 log.info("Mounted application shell");
 ```
 
+The browser subpath is built separately from the Node entry point and should remain free of Node.js builtin imports. CI and the publish workflow run export smoke checks against both ESM and CommonJS entry points before packaging.
+
 ## Framework Adapters
 
 BetterLogs stays dependency-light, so the framework adapters are opt-in helpers rather than hard integrations.
@@ -720,15 +722,19 @@ The repository includes:
 npm run build
 npm run dev
 npm run typecheck
+npm run smoke:exports
 npm run clean
 ```
+
+`smoke:exports` expects `dist/` to exist, so run it after `npm run build` when working locally.
 
 ## Release Flow
 
 BetterLogs now includes GitHub Actions for validation and publishing:
 
-- `CI` runs on pushes and pull requests and verifies install, typecheck, build, and publish contents
-- `Publish` runs when a GitHub release is published, uses npm trusted publishing, and publishes with provenance
+- `CI` runs on pushes and pull requests and verifies install, typecheck, build, export smoke checks, and publish contents
+- `Publish` runs when a GitHub release is published, uses npm trusted publishing, runs the same package export smoke checks, and publishes with provenance
+- `prepublishOnly` runs typecheck, build, and export smoke checks for local npm publishes
 
 Recommended release flow:
 
@@ -760,6 +766,9 @@ Future ideas for the package:
 - configurable log sampling and burst rate limiting
 - transport metrics exporters and richer delivery diagnostics
 - schema-driven structured event helpers for shared internal log contracts
+- first-party type tests for public API stability across the root and browser subpaths
+- browser bundle regression tests that assert no Node-only modules leak into the browser entry
+- documentation examples for common production deployment patterns in Orion services
 - worker-thread and multi-process relay transports
 - OTLP and vendor-specific transport presets
 - CLI tooling for inspecting durable spool and archive files

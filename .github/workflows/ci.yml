@@ -29,5 +29,8 @@ jobs:
       - name: Build package
         run: npm run build
 
+      - name: Smoke test package exports
+        run: npm run smoke:exports
+
       - name: Verify publish contents
         run: npm pack --dry-run

@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-The latest published release of `@trs/betterlogs` is the supported version for security fixes.
+The latest published release of `@orionaisystems/betterlogs` is the supported version for security fixes.
 
 ## Reporting A Vulnerability
 

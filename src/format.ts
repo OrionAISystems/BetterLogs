@@ -1,5 +1,3 @@
-import { inspect } from "node:util";
-
 import pc from "picocolors";
 
 import {
@@ -50,12 +48,64 @@ function pad(value: number): string {
 
 function createInspectOptions(config: PrettyFormattingConfig) {
   return {
-    colors: config.colors,
     depth: null,
     compact: !config.prettyPrintObjects,
-    breakLength: config.prettyPrintObjects ? 100 : Number.POSITIVE_INFINITY,
-    sorted: true as const
+    breakLength: config.prettyPrintObjects ? 100 : Number.POSITIVE_INFINITY
   };
+}
+
+function stringifyForHumans(value: unknown, space: number): string | undefined {
+  const seen = new WeakSet<object>();
+
+  return JSON.stringify(
+    value,
+    (_key, entry) => {
+      if (typeof entry === "bigint") {
+        return entry.toString();
+      }
+
+      if (typeof entry === "symbol") {
+        return String(entry);
+      }
+
+      if (typeof entry === "function") {
+        return `[Function ${entry.name || "anonymous"}]`;
+      }
+
+      if (entry instanceof Error) {
+        return {
+          name: entry.name,
+          message: entry.message,
+          stack: entry.stack
+        };
+      }
+
+      if (typeof entry === "object" && entry !== null) {
+        if (seen.has(entry)) {
+          return "[Circular]";
+        }
+
+        seen.add(entry);
+      }
+
+      return entry;
+    },
+    space
+  );
+}
+
+function formatStructuredValue(
+  value: unknown,
+  options: ReturnType<typeof createInspectOptions>
+): string {
+  const space = options.compact ? 0 : 2;
+  const serialized = stringifyForHumans(value, space);
+
+  if (serialized !== undefined) {
+    return serialized;
+  }
+
+  return String(value);
 }
 
 function resolvePrettyConfig(
@@ -231,7 +281,7 @@ function formatPrettyValue(value: unknown, config: PrettyFormattingConfig): stri
     return String(value);
   }
 
-  return inspect(value, createInspectOptions(config));
+  return formatStructuredValue(value, createInspectOptions(config));
 }
 
 function formatBrowserValue(
