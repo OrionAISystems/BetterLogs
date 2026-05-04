@@ -1,4 +1,4 @@
-import { runWithLogContext } from "./context";
+import { enterLogContext, runWithLogContext } from "./context";
 import type {
   ExpressLikeNext,
   ExpressLikeRequest,
@@ -42,7 +42,7 @@ function getHeader(
 }
 
 function pickHeaders(
-  headers: Record<string, string | string[] | undefined>,
+  headers: HeaderCarrier | Record<string, string | string[] | undefined>,
   includeHeaders: readonly string[]
 ): Record<string, string | string[] | undefined> {
   const result: Record<string, string | string[] | undefined> = {};
@@ -88,11 +88,8 @@ function resolveBindings(
     url: request.originalUrl ?? request.url
   };
 
-  if (includeHeaders.length > 0 && !("get" in request.headers && typeof request.headers.get === "function")) {
-    context.headers = pickHeaders(
-      request.headers as Record<string, string | string[] | undefined>,
-      includeHeaders
-    );
+  if (includeHeaders.length > 0) {
+    context.headers = pickHeaders(request.headers, includeHeaders);
   }
 
   return {
@@ -179,7 +176,7 @@ export function createFastifyLoggingHooks(
         })
       );
 
-      runWithLogContext(bindings, () => undefined);
+      enterLogContext(bindings);
     },
     onResponse(request: FastifyLikeRequest, reply: FastifyLikeReply) {
       const timer = timers.get(request);

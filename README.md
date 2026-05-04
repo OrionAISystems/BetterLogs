@@ -639,6 +639,8 @@ export async function handle(request: Request) {
 }
 ```
 
+`includeHeaders` works with both plain object header maps and `Headers`-style request objects, which keeps Edge and Fetch runtimes aligned with the Node adapters.
+
 ## OpenTelemetry Bridge Utilities
 
 `@orionaisystems/betterlogs` stays dependency-light, so the OpenTelemetry helpers work through small compatible interfaces rather than taking a hard dependency on the OTel SDK.
@@ -754,11 +756,12 @@ The repository includes:
 npm run build
 npm run dev
 npm run typecheck
+npm run typecheck:api
 npm run smoke:exports
 npm run clean
 ```
 
-`smoke:exports` expects `dist/` to exist, so run it after `npm run build` when working locally.
+`smoke:exports` and `typecheck:api` expect `dist/` to exist, so run them after `npm run build` when working locally. The API type tests compile small consumer-style imports from the root package and browser subpath to catch accidental public surface regressions.
 
 ## Release Flow
 
@@ -779,7 +782,7 @@ Then publish a GitHub release for the new tag from the repository UI to trigger 
 
 ## Design Notes
 
-`@orionaisystems/betterlogs` v0.7.0 keeps the runtime small while separating:
+`@orionaisystems/betterlogs` v0.8.0 keeps the runtime small while separating:
 
 - record creation and ambient binding resolution
 - redaction and serialization
@@ -789,6 +792,7 @@ Then publish a GitHub release for the new tag from the repository UI to trigger 
 - hook observation
 - Node and browser entry points
 - runtime-specific adapter helpers
+- compile-only public API type tests for the root and browser package exports
 
 That separation makes it practical to add more outputs and integrations later without disturbing the logger API most callers use every day.
 
@@ -798,7 +802,6 @@ Future ideas for the package:
 
 - transport metrics exporters and richer delivery diagnostics
 - schema-driven structured event helpers for shared internal log contracts
-- first-party type tests for public API stability across the root and browser subpaths
 - browser bundle regression tests that assert no Node-only modules leak into the browser entry
 - documentation examples for common production deployment patterns in Orion services
 - worker-thread and multi-process relay transports

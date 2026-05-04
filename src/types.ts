@@ -382,7 +382,6 @@ export interface LoggerOptions extends LoggerBindings {
 
 export interface HeaderCarrier {
   readonly get?: (name: string) => string | null | undefined;
-  readonly [key: string]: unknown;
 }
 
 export interface RequestLoggerBindingOptions {
