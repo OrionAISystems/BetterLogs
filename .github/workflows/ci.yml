@@ -6,6 +6,9 @@ on:
       - main
   pull_request:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -31,6 +34,9 @@ jobs:
 
       - name: Smoke test package exports
         run: npm run smoke:exports
+
+      - name: Typecheck public API
+        run: npm run typecheck:api
 
       - name: Verify publish contents
         run: npm pack --dry-run
