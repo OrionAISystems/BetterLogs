@@ -1,6 +1,6 @@
 # @orionaisystems/betterlogs
 
-`@orionaisystems/betterlogs` is a reusable logging package for TypeScript projects that want elegant console output locally and stronger delivery guarantees in production. It keeps the default developer experience clean while supporting scoped child loggers, structured metadata, redaction, async context propagation, durable batching, pluggable transports, broker helpers, health-aware delivery, and framework adapters.
+`@orionaisystems/betterlogs` is a reusable logging package for TypeScript projects that want elegant console output locally and stronger delivery guarantees in production. It keeps the default developer experience clean while supporting scoped child loggers, structured metadata, redaction, async context propagation, durable batching, durable spool inspection, pluggable transports, broker helpers, health-aware delivery, and framework adapters.
 
 ## Installation
 
@@ -86,6 +86,7 @@ Example output:
 - structured JSON formatting and flattening for ingestion pipelines and MCP-oriented consumers
 - async-aware logger bindings for request IDs, correlation IDs, and shared context
 - durable batching with spool-file persistence and acknowledgement-aware retries
+- CLI and programmatic inspection for durable spool, rotated log, and archive JSONL files
 - built-in buffering, file output, file rotation, archival retention, HTTP delivery, and queue helpers
 - transport retry, health tracking, circuit breaker wrapping, and explicit `flush()` support
 - framework adapters for Express-style, Fastify-style, Koa-style, and fetch-style runtimes
@@ -298,6 +299,29 @@ const log = createLogger({
 ```
 
 If the sink only acknowledges part of a batch, BetterLogs keeps the remaining records in the spool file for the next flush cycle.
+
+## Durable Spool Inspection CLI
+
+BetterLogs ships a small Node CLI for inspecting JSONL spool files, rotated log files, and archive directories without writing a one-off script.
+
+```bash
+npx @orionaisystems/betterlogs inspect ./.betterlogs/spool.jsonl
+npx @orionaisystems/betterlogs inspect ./logs/archive --limit 5 --json
+```
+
+The human output summarizes total records, invalid JSONL lines, timestamp windows, levels, scopes, request IDs, and recent records per file. `--json` prints the same inspection result as structured data for operational scripts.
+
+The same inspection logic is available from the root package when an application wants to build its own operator surface:
+
+```ts
+import { inspectDurableLogPaths } from "@orionaisystems/betterlogs";
+
+const inspection = await inspectDurableLogPaths(["./.betterlogs/spool.jsonl"], {
+  limit: 20
+});
+
+console.log(inspection.totalRecordCount);
+```
 
 ## Transport Health And Circuit Breakers
 
@@ -758,18 +782,19 @@ npm run dev
 npm run typecheck
 npm run typecheck:api
 npm run smoke:exports
+npm run smoke:runtime
 npm run clean
 ```
 
-`smoke:exports` and `typecheck:api` expect `dist/` to exist, so run them after `npm run build` when working locally. The API type tests compile small consumer-style imports from the root package and browser subpath to catch accidental public surface regressions.
+`smoke:exports`, `smoke:runtime`, and `typecheck:api` expect `dist/` to exist, so run them after `npm run build` when working locally. The API type tests compile small consumer-style imports from the root package and browser subpath to catch accidental public surface regressions. The runtime smoke test exercises the Fetch/Fastify adapter behavior and the durable inspection CLI against the built package.
 
 ## Release Flow
 
 BetterLogs now includes GitHub Actions for validation and publishing:
 
-- `CI` runs on pushes and pull requests and verifies install, typecheck, build, export smoke checks, and publish contents
-- `Publish` runs when a GitHub release is published, uses npm trusted publishing, runs the same package export smoke checks, and publishes with provenance
-- `prepublishOnly` runs typecheck, build, and export smoke checks for local npm publishes
+- `CI` runs on pushes and pull requests and verifies install, typecheck, build, export smoke checks, runtime smoke checks, and publish contents
+- `Publish` runs when a GitHub release is published, uses npm trusted publishing, runs the same package export/runtime smoke checks, and publishes with provenance
+- `prepublishOnly` runs typecheck, build, export smoke checks, runtime adapter/CLI smoke checks, and public API type checks for local npm publishes
 
 Recommended release flow:
 
@@ -782,7 +807,7 @@ Then publish a GitHub release for the new tag from the repository UI to trigger 
 
 ## Design Notes
 
-`@orionaisystems/betterlogs` v0.8.0 keeps the runtime small while separating:
+`@orionaisystems/betterlogs` v0.9.0 keeps the runtime small while separating:
 
 - record creation and ambient binding resolution
 - redaction and serialization
@@ -792,7 +817,8 @@ Then publish a GitHub release for the new tag from the repository UI to trigger 
 - hook observation
 - Node and browser entry points
 - runtime-specific adapter helpers
-- compile-only public API type tests for the root and browser package exports
+- CLI/programmatic inspection for durable JSONL spool and archive files
+- compile-only public API type tests plus runtime adapter smoke tests for the root and browser package exports
 
 That separation makes it practical to add more outputs and integrations later without disturbing the logger API most callers use every day.
 
@@ -806,7 +832,6 @@ Future ideas for the package:
 - documentation examples for common production deployment patterns in Orion services
 - worker-thread and multi-process relay transports
 - OTLP and vendor-specific transport presets
-- CLI tooling for inspecting durable spool and archive files
 
 ## License
 

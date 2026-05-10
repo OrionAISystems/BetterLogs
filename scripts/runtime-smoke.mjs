@@ -1,0 +1,158 @@
+import { execFile } from "node:child_process";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
+import {
+  createAsyncContextBindingsProvider,
+  createFastifyLoggingHooks,
+  createTestLogger,
+  withFetchRequestLogging
+} from "../dist/index.js";
+
+const execFileAsync = promisify(execFile);
+
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function findRecord(records, message) {
+  return records.find((record) => record.message === message);
+}
+
+const { logger, transport } = createTestLogger({
+  bindingsProvider: createAsyncContextBindingsProvider()
+});
+
+const fastifyHooks = createFastifyLoggingHooks(logger, {
+  includeHeaders: ["user-agent"],
+  successLevel: "info"
+});
+
+const fastifyRequest = {
+  method: "GET",
+  url: "/runtime-smoke",
+  headers: {
+    "user-agent": "betterlogs-runtime-smoke",
+    "x-request-id": "req_fastify_runtime",
+    "x-correlation-id": "corr_fastify_runtime"
+  },
+  id: "fallback_fastify_id"
+};
+
+fastifyHooks.onRequest(fastifyRequest, { statusCode: 200 });
+await Promise.resolve();
+logger.info("fastify handler log");
+fastifyHooks.onResponse(fastifyRequest, { statusCode: 204 });
+await logger.flush();
+
+const fastifyHandlerRecord = findRecord(transport.records, "fastify handler log");
+assert(fastifyHandlerRecord, "Fastify handler log was not captured.");
+assert(
+  fastifyHandlerRecord.requestId === "req_fastify_runtime",
+  "Fastify ambient request ID did not survive the runtime lifecycle."
+);
+assert(
+  fastifyHandlerRecord.correlationId === "corr_fastify_runtime",
+  "Fastify ambient correlation ID did not survive the runtime lifecycle."
+);
+assert(
+  fastifyHandlerRecord.context.headers?.["user-agent"] === "betterlogs-runtime-smoke",
+  "Fastify included headers were not bound into runtime context."
+);
+
+const fastifyResponseRecord = transport.records.find(
+  (record) =>
+    record.message === "GET /runtime-smoke" &&
+    record.requestId === "req_fastify_runtime" &&
+    record.meta?.statusCode === 204
+);
+assert(fastifyResponseRecord, "Fastify response timer did not capture status metadata.");
+
+await withFetchRequestLogging(
+  logger,
+  {
+    method: "POST",
+    url: "https://example.com/runtime-smoke",
+    headers: new Headers({
+      "user-agent": "betterlogs-fetch-smoke",
+      "x-request-id": "req_fetch_runtime",
+      "x-correlation-id": "corr_fetch_runtime"
+    })
+  },
+  async (requestLogger) => {
+    await Promise.resolve();
+    requestLogger.info("fetch handler log");
+
+    return {
+      status: 202
+    };
+  },
+  {
+    includeHeaders: ["user-agent"],
+    successLevel: "info"
+  }
+);
+await logger.flush();
+
+const fetchHandlerRecord = findRecord(transport.records, "fetch handler log");
+assert(fetchHandlerRecord, "Fetch handler log was not captured.");
+assert(
+  fetchHandlerRecord.requestId === "req_fetch_runtime",
+  "Fetch request ID was not bound for handler logs."
+);
+assert(
+  fetchHandlerRecord.context.headers?.["user-agent"] === "betterlogs-fetch-smoke",
+  "Fetch Headers includeHeaders support regressed."
+);
+
+const tempDirectory = await mkdtemp(join(tmpdir(), "betterlogs-runtime-"));
+const spoolPath = join(tempDirectory, "spool.jsonl");
+
+try {
+  await writeFile(
+    spoolPath,
+    [
+      JSON.stringify({
+        timestamp: "2026-05-09T12:00:00.000Z",
+        level: "info",
+        scope: "runtime",
+        message: "first durable record",
+        requestId: "req_cli_1",
+        context: {
+          workflow: "smoke"
+        }
+      }),
+      JSON.stringify({
+        timestamp: "2026-05-09T12:00:01.000Z",
+        level: "warn",
+        scope: "runtime",
+        message: "second durable record",
+        requestId: "req_cli_2"
+      })
+    ].join("\n") + "\n",
+    "utf8"
+  );
+
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    ["dist/cli.js", "inspect", spoolPath, "--json", "--limit", "1"]
+  );
+  const inspection = JSON.parse(stdout);
+
+  assert(inspection.totalRecordCount === 2, "CLI inspection did not count JSONL records.");
+  assert(inspection.totalInvalidLineCount === 0, "CLI inspection reported unexpected invalid lines.");
+  assert(inspection.files[0]?.levels?.info === 1, "CLI inspection did not summarize levels.");
+  assert(
+    inspection.files[0]?.recentRecords?.[0]?.message === "second durable record",
+    "CLI inspection did not honor the recent record limit."
+  );
+} finally {
+  await rm(tempDirectory, {
+    recursive: true,
+    force: true
+  });
+}

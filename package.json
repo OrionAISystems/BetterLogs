@@ -1,6 +1,6 @@
 {
   "name": "@orionaisystems/betterlogs",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "A durable, context-aware logger for Node.js and browser TypeScript projects.",
   "homepage": "https://github.com/OrionAISystems/BetterLogs#readme",
   "repository": {
@@ -26,6 +26,9 @@
       "require": "./dist/browser.cjs"
     }
   },
+  "bin": {
+    "betterlogs": "./dist/cli.js"
+  },
   "files": [
     "dist",
     "README.md",
@@ -44,7 +47,8 @@
     "typecheck": "tsc --noEmit",
     "typecheck:api": "tsc --noEmit -p tsconfig.api-tests.json",
     "smoke:exports": "node scripts/smoke-exports.mjs",
-    "prepublishOnly": "npm run typecheck && npm run build && npm run smoke:exports && npm run typecheck:api",
+    "smoke:runtime": "node scripts/runtime-smoke.mjs",
+    "prepublishOnly": "npm run typecheck && npm run build && npm run smoke:exports && npm run smoke:runtime && npm run typecheck:api",
     "clean": "node --eval \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
   },
   "keywords": [

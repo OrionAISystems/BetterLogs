@@ -32,5 +32,11 @@ export default defineConfig([
     entry: ["src/browser.ts"],
     clean: false,
     platform: "browser"
+  },
+  {
+    ...shared,
+    entry: ["src/cli.ts"],
+    clean: false,
+    platform: "node"
   }
 ]);

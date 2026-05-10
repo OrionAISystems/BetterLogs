@@ -1,11 +1,13 @@
 import {
   createAsyncContextBindingsProvider,
   createFastifyLoggingHooks,
+  inspectDurableLogPaths,
   createLogger,
   createRequestLoggerBindings,
   createTestLogger,
   runWithLogContext,
   withFetchRequestLogging,
+  type DurableSpoolInspection,
   type FastifyLikeReply,
   type FastifyLikeRequest,
   type FetchLikeRequest,
@@ -115,3 +117,12 @@ const browserOptions: BrowserLoggerOptions = {
 
 const browserLogger = createBrowserLogger(browserOptions);
 browserLogger.info("Browser subpath public API compiles");
+
+const durableInspection: Promise<DurableSpoolInspection> = inspectDurableLogPaths(
+  ["./.betterlogs/spool.jsonl"],
+  {
+    limit: 5
+  }
+);
+
+void durableInspection;

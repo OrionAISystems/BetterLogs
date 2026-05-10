@@ -43,6 +43,9 @@ jobs:
       - name: Smoke test package exports
         run: npm run smoke:exports
 
+      - name: Smoke test runtime adapters and CLI
+        run: npm run smoke:runtime
+
       - name: Typecheck public API
         run: npm run typecheck:api
 

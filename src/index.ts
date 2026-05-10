@@ -21,6 +21,10 @@ export {
   createHealthTrackedTransport,
   getTransportHealth
 } from "./health";
+export {
+  inspectDurableLogFile,
+  inspectDurableLogPaths
+} from "./inspect";
 export { createLogger } from "./logger";
 export {
   createBullMqTransport,
@@ -60,6 +64,12 @@ export {
   snapshotRecord,
   snapshotRecords
 } from "./testing";
+export type {
+  DurableSpoolFileInspection,
+  DurableSpoolInspection,
+  DurableSpoolInspectionOptions,
+  InspectableLogRecord
+} from "./inspect";
 export type {
   AsyncOrSync,
   BrowserConsoleTransportOptions,

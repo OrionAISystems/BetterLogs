@@ -34,6 +34,13 @@ for (const [label, moduleExports] of [
   ) {
     throw new Error(`${label} did not expose createBrowserLogger.`);
   }
+
+  if (
+    typeof moduleExports.inspectDurableLogPaths !== "function" &&
+    label.startsWith("root")
+  ) {
+    throw new Error(`${label} did not expose inspectDurableLogPaths.`);
+  }
 }
 
 const browserLogger = browserEsm.createBrowserLogger({
