@@ -6,8 +6,12 @@ import { promisify } from "node:util";
 
 import {
   createAsyncContextBindingsProvider,
+  createCircuitBreakerTransport,
   createFastifyLoggingHooks,
+  createHealthTrackedTransport,
   createTestLogger,
+  createTransportDiagnosticsSnapshot,
+  formatTransportDiagnosticsAsPrometheus,
   withFetchRequestLogging
 } from "../dist/index.js";
 
@@ -107,6 +111,57 @@ assert(
 assert(
   fetchHandlerRecord.context.headers?.["user-agent"] === "betterlogs-fetch-smoke",
   "Fetch Headers includeHeaders support regressed."
+);
+
+const failingDelivery = createCircuitBreakerTransport({
+  name: "runtime-smoke-pipeline",
+  transport: createHealthTrackedTransport({
+    name: "runtime-smoke-delivery",
+    transport: {
+      write() {
+        throw new Error("runtime smoke ingest unavailable");
+      }
+    }
+  }),
+  failureThreshold: 1,
+  resetTimeoutMs: 60_000
+});
+
+await failingDelivery
+  .write({
+    timestamp: new Date("2026-05-09T12:00:00.000Z"),
+    level: "info",
+    message: "diagnostic smoke record",
+    context: {}
+  })
+  .catch(() => undefined);
+
+const diagnostics = createTransportDiagnosticsSnapshot([failingDelivery], {
+  now: new Date(),
+  labels: {
+    "invalid-label": "normalized",
+    service: "runtime-smoke"
+  }
+});
+
+assert(diagnostics.status === "unhealthy", "Diagnostics did not flag open transport state.");
+assert(
+  diagnostics.transports[0]?.openRemainingMs > 0,
+  "Diagnostics did not expose open circuit remaining time."
+);
+
+const prometheusMetrics = formatTransportDiagnosticsAsPrometheus(diagnostics);
+assert(
+  prometheusMetrics.includes("betterlogs_transport_total_failures"),
+  "Prometheus diagnostics did not include failure counters."
+);
+assert(
+  prometheusMetrics.includes('service="runtime-smoke"'),
+  "Prometheus diagnostics did not include snapshot labels."
+);
+assert(
+  prometheusMetrics.includes('invalid_label="normalized"'),
+  "Prometheus diagnostics did not normalize label names."
 );
 
 const tempDirectory = await mkdtemp(join(tmpdir(), "betterlogs-runtime-"));

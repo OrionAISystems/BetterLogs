@@ -270,6 +270,11 @@ export interface BullMqTransportOptions {
 }
 
 export type TransportHealthState = "healthy" | "degraded" | "unhealthy" | "open" | "half-open";
+export type TransportDiagnosticsStatus = "healthy" | "degraded" | "unhealthy";
+
+export type TransportDiagnosticsLabelValue = string | number | boolean;
+
+export type TransportDiagnosticsLabels = Readonly<Record<string, TransportDiagnosticsLabelValue>>;
 
 export interface TransportHealth {
   readonly name?: string;
@@ -287,6 +292,55 @@ export interface TransportHealth {
 
 export interface HealthAwareTransport extends LogTransport {
   getHealth(): TransportHealth;
+}
+
+export interface TransportDiagnosticsOptions {
+  readonly now?: Date | (() => Date);
+  readonly labels?: TransportDiagnosticsLabels;
+}
+
+export interface TransportDiagnosticEntry {
+  readonly name: string;
+  readonly state: TransportHealthState;
+  readonly status: TransportDiagnosticsStatus;
+  readonly writable: boolean;
+  readonly consecutiveFailures: number;
+  readonly totalWrites: number;
+  readonly totalSuccesses: number;
+  readonly totalFailures: number;
+  readonly successRatio: number;
+  readonly failureRatio: number;
+  readonly lastSuccessAt?: string;
+  readonly lastSuccessAtUnixMs?: number;
+  readonly lastFailureAt?: string;
+  readonly lastFailureAtUnixMs?: number;
+  readonly lastErrorMessage?: string;
+  readonly openedAt?: string;
+  readonly openedAtUnixMs?: number;
+  readonly openUntil?: string;
+  readonly openUntilUnixMs?: number;
+  readonly openRemainingMs?: number;
+  readonly labels: TransportDiagnosticsLabels;
+}
+
+export interface TransportDiagnosticsSnapshot {
+  readonly generatedAt: string;
+  readonly generatedAtUnixMs: number;
+  readonly status: TransportDiagnosticsStatus;
+  readonly totalTransportCount: number;
+  readonly degradedTransportCount: number;
+  readonly unhealthyTransportCount: number;
+  readonly openTransportCount: number;
+  readonly totalWrites: number;
+  readonly totalSuccesses: number;
+  readonly totalFailures: number;
+  readonly labels: TransportDiagnosticsLabels;
+  readonly transports: readonly TransportDiagnosticEntry[];
+}
+
+export interface PrometheusTransportMetricsOptions {
+  readonly prefix?: string;
+  readonly labels?: TransportDiagnosticsLabels;
 }
 
 export interface HealthTrackedTransportOptions {

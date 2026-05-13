@@ -1,6 +1,9 @@
 import {
   createAsyncContextBindingsProvider,
   createFastifyLoggingHooks,
+  createOrionProductionLoggingPreset,
+  createTransportDiagnosticsSnapshot,
+  formatTransportDiagnosticsAsPrometheus,
   inspectDurableLogPaths,
   createLogger,
   createRequestLoggerBindings,
@@ -13,7 +16,8 @@ import {
   type FetchLikeRequest,
   type FetchLikeResponse,
   type Logger,
-  type LogRecord
+  type LogRecord,
+  type TransportDiagnosticsSnapshot
 } from "@orionaisystems/betterlogs";
 import {
   createBrowserConsoleTransport,
@@ -126,3 +130,34 @@ const durableInspection: Promise<DurableSpoolInspection> = inspectDurableLogPath
 );
 
 void durableInspection;
+
+const loggingPreset = createOrionProductionLoggingPreset({
+  scope: "orion-type-test",
+  serviceName: "orion",
+  environment: "test",
+  console: false,
+  http: {
+    url: "https://logs.example.test/ingest"
+  },
+  durable: {
+    filePath: "./.betterlogs/type-test-spool.jsonl"
+  },
+  labels: {
+    surface: "type-test"
+  }
+});
+
+loggingPreset.logger.info("Preset public API compiles");
+
+const diagnostics: TransportDiagnosticsSnapshot = loggingPreset.getDiagnostics();
+const directDiagnostics = createTransportDiagnosticsSnapshot(
+  loggingPreset.healthTransports
+);
+const prometheusMetrics = formatTransportDiagnosticsAsPrometheus(diagnostics, {
+  labels: {
+    source: "api-test"
+  }
+});
+
+void directDiagnostics;
+void prometheusMetrics;

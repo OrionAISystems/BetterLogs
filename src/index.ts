@@ -19,6 +19,8 @@ export { createFileTransport } from "./file";
 export {
   createCircuitBreakerTransport,
   createHealthTrackedTransport,
+  createTransportDiagnosticsSnapshot,
+  formatTransportDiagnosticsAsPrometheus,
   getTransportHealth
 } from "./health";
 export {
@@ -39,6 +41,7 @@ export {
   createOpenTelemetrySpanHook,
   toOpenTelemetrySeverityNumber
 } from "./otel";
+export { createOrionProductionLoggingPreset } from "./presets";
 export {
   createDefaultRedactionRules,
   createKeyRedactionRule,
@@ -130,6 +133,7 @@ export type {
   OpenTelemetryLogRecord,
   OpenTelemetrySpanLike,
   PrettyFormatterOptions,
+  PrometheusTransportMetricsOptions,
   QueueTransportOptions,
   RateLimitSamplerOptions,
   RedactionPattern,
@@ -144,5 +148,14 @@ export type {
   SqsTransportOptions,
   TestLoggerResult,
   TransportHealth,
+  TransportDiagnosticEntry,
+  TransportDiagnosticsLabels,
+  TransportDiagnosticsOptions,
+  TransportDiagnosticsSnapshot,
+  TransportDiagnosticsStatus,
   TransportHealthState
 } from "./types";
+export type {
+  OrionProductionLoggingPreset,
+  OrionProductionLoggingPresetOptions
+} from "./presets";
