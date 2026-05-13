@@ -13,6 +13,13 @@ export {
   getLogContext,
   runWithLogContext
 } from "./context";
+export {
+  createExpressTransportDiagnosticsHandler,
+  createFastifyTransportDiagnosticsHandler,
+  createFetchTransportDiagnosticsHandler,
+  createKoaTransportDiagnosticsMiddleware,
+  createTransportDiagnosticsPayload
+} from "./diagnostics";
 export { createDurableBatchingTransport } from "./durable";
 export { createPrettyFormatter, createJsonFormatter, createBrowserFormatter } from "./format";
 export { createFileTransport } from "./file";
@@ -86,12 +93,15 @@ export type {
   DurableBatchAck,
   DurableBatchingTransportOptions,
   ExpressLikeNext,
+  ExpressLikeDiagnosticsResponse,
   ExpressLikeRequest,
   ExpressLikeResponse,
   FastifyLikeReply,
+  FastifyLikeDiagnosticsReply,
   FastifyLikeRequest,
   FastifyLoggingHooks,
   FetchLikeRequest,
+  FetchDiagnosticsResponse,
   FetchLikeResponse,
   FileRetentionOptions,
   FileRotationOptions,
@@ -107,6 +117,7 @@ export type {
   KafkaLikeProducer,
   KafkaTransportOptions,
   KoaLikeContext,
+  KoaLikeDiagnosticsContext,
   KoaLikeNext,
   LogContext,
   LogContextStore,
@@ -150,9 +161,15 @@ export type {
   TransportHealth,
   TransportDiagnosticEntry,
   TransportDiagnosticsLabels,
+  TransportDiagnosticsEndpointOptions,
+  TransportDiagnosticsFormat,
   TransportDiagnosticsOptions,
+  TransportDiagnosticsPayload,
   TransportDiagnosticsSnapshot,
   TransportDiagnosticsStatus,
+  TransportHealthTransition,
+  TransportHealthTransitionHandler,
+  TransportHealthTransitionReason,
   TransportHealthState
 } from "./types";
 export type {

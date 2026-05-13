@@ -24,7 +24,8 @@ import type {
   MaybeArray,
   RetryPolicyOptions,
   TransportDiagnosticsLabels,
-  TransportDiagnosticsSnapshot
+  TransportDiagnosticsSnapshot,
+  TransportHealthTransitionHandler
 } from "./types";
 
 export interface OrionProductionLoggingPresetOptions {
@@ -49,10 +50,12 @@ export interface OrionProductionLoggingPresetOptions {
     readonly failureThreshold?: number;
     readonly resetTimeoutMs?: number;
     readonly halfOpenMaxWrites?: number;
+    readonly onStateChange?: TransportHealthTransitionHandler;
   };
   readonly health?: {
     readonly degradedAfterFailures?: number;
     readonly unhealthyAfterFailures?: number;
+    readonly onStateChange?: TransportHealthTransitionHandler;
   };
   readonly console?: boolean;
   readonly sample?: MaybeArray<LogSampler>;
@@ -122,7 +125,10 @@ function buildHttpPipeline(options: OrionProductionLoggingPresetOptions): {
       formatter: createJsonFormatter()
     }),
     degradedAfterFailures: options.health?.degradedAfterFailures ?? 1,
-    unhealthyAfterFailures: options.health?.unhealthyAfterFailures ?? 3
+    unhealthyAfterFailures: options.health?.unhealthyAfterFailures ?? 3,
+    ...(options.health?.onStateChange
+      ? { onStateChange: options.health.onStateChange }
+      : {})
   });
 
   const pipelineTransport = options.durable
@@ -146,7 +152,10 @@ function buildHttpPipeline(options: OrionProductionLoggingPresetOptions): {
     transport: pipelineTransport,
     failureThreshold: options.circuitBreaker?.failureThreshold ?? 3,
     resetTimeoutMs: options.circuitBreaker?.resetTimeoutMs ?? 30_000,
-    halfOpenMaxWrites: options.circuitBreaker?.halfOpenMaxWrites ?? 1
+    halfOpenMaxWrites: options.circuitBreaker?.halfOpenMaxWrites ?? 1,
+    ...(options.circuitBreaker?.onStateChange
+      ? { onStateChange: options.circuitBreaker.onStateChange }
+      : {})
   });
 
   return {

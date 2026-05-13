@@ -271,6 +271,15 @@ export interface BullMqTransportOptions {
 
 export type TransportHealthState = "healthy" | "degraded" | "unhealthy" | "open" | "half-open";
 export type TransportDiagnosticsStatus = "healthy" | "degraded" | "unhealthy";
+export type TransportDiagnosticsFormat = "json" | "prometheus";
+export type TransportHealthTransitionReason =
+  | "write-success"
+  | "write-failure"
+  | "flush-success"
+  | "flush-failure"
+  | "circuit-opened"
+  | "circuit-half-opened"
+  | "circuit-closed";
 
 export type TransportDiagnosticsLabelValue = string | number | boolean;
 
@@ -293,6 +302,18 @@ export interface TransportHealth {
 export interface HealthAwareTransport extends LogTransport {
   getHealth(): TransportHealth;
 }
+
+export interface TransportHealthTransition {
+  readonly name?: string;
+  readonly previousState: TransportHealthState;
+  readonly currentState: TransportHealthState;
+  readonly reason: TransportHealthTransitionReason;
+  readonly health: TransportHealth;
+}
+
+export type TransportHealthTransitionHandler = (
+  transition: TransportHealthTransition
+) => AsyncOrSync<void>;
 
 export interface TransportDiagnosticsOptions {
   readonly now?: Date | (() => Date);
@@ -343,11 +364,50 @@ export interface PrometheusTransportMetricsOptions {
   readonly labels?: TransportDiagnosticsLabels;
 }
 
+export interface TransportDiagnosticsEndpointOptions extends TransportDiagnosticsOptions {
+  readonly format?: TransportDiagnosticsFormat;
+  readonly jsonSpace?: number;
+  readonly statusCode?: "always-200" | "from-health";
+  readonly prometheus?: PrometheusTransportMetricsOptions;
+}
+
+export interface TransportDiagnosticsPayload {
+  readonly statusCode: number;
+  readonly contentType: string;
+  readonly body: string;
+  readonly snapshot: TransportDiagnosticsSnapshot;
+}
+
+export interface FetchDiagnosticsResponse {
+  readonly status: number;
+  readonly headers: Record<string, string>;
+  readonly body: string;
+}
+
+export interface ExpressLikeDiagnosticsResponse {
+  status(code: number): ExpressLikeDiagnosticsResponse;
+  setHeader(name: string, value: string): void;
+  end(body: string): void;
+}
+
+export interface FastifyLikeDiagnosticsReply {
+  code(statusCode: number): FastifyLikeDiagnosticsReply;
+  header(name: string, value: string): FastifyLikeDiagnosticsReply;
+  send(body: string): unknown;
+}
+
+export interface KoaLikeDiagnosticsContext {
+  status: number;
+  type?: string;
+  body?: unknown;
+}
+
 export interface HealthTrackedTransportOptions {
   readonly transport: LogTransport;
   readonly name?: string;
   readonly degradedAfterFailures?: number;
   readonly unhealthyAfterFailures?: number;
+  readonly onStateChange?: TransportHealthTransitionHandler;
 }
 
 export interface CircuitBreakerTransportOptions {
@@ -356,6 +416,7 @@ export interface CircuitBreakerTransportOptions {
   readonly failureThreshold?: number;
   readonly resetTimeoutMs?: number;
   readonly halfOpenMaxWrites?: number;
+  readonly onStateChange?: TransportHealthTransitionHandler;
 }
 
 export interface MemoryTransport extends LogTransport {

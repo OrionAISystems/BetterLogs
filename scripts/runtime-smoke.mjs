@@ -7,7 +7,9 @@ import { promisify } from "node:util";
 import {
   createAsyncContextBindingsProvider,
   createCircuitBreakerTransport,
+  createExpressTransportDiagnosticsHandler,
   createFastifyLoggingHooks,
+  createFetchTransportDiagnosticsHandler,
   createHealthTrackedTransport,
   createTestLogger,
   createTransportDiagnosticsSnapshot,
@@ -113,6 +115,7 @@ assert(
   "Fetch Headers includeHeaders support regressed."
 );
 
+const transitions = [];
 const failingDelivery = createCircuitBreakerTransport({
   name: "runtime-smoke-pipeline",
   transport: createHealthTrackedTransport({
@@ -124,7 +127,10 @@ const failingDelivery = createCircuitBreakerTransport({
     }
   }),
   failureThreshold: 1,
-  resetTimeoutMs: 60_000
+  resetTimeoutMs: 60_000,
+  onStateChange(transition) {
+    transitions.push(transition);
+  }
 });
 
 await failingDelivery
@@ -146,6 +152,15 @@ const diagnostics = createTransportDiagnosticsSnapshot([failingDelivery], {
 
 assert(diagnostics.status === "unhealthy", "Diagnostics did not flag open transport state.");
 assert(
+  transitions.some(
+    (transition) =>
+      transition.previousState === "healthy" &&
+      transition.currentState === "open" &&
+      transition.reason === "circuit-opened"
+  ),
+  "Circuit breaker did not emit a health transition."
+);
+assert(
   diagnostics.transports[0]?.openRemainingMs > 0,
   "Diagnostics did not expose open circuit remaining time."
 );
@@ -156,12 +171,62 @@ assert(
   "Prometheus diagnostics did not include failure counters."
 );
 assert(
+  prometheusMetrics.includes("betterlogs_transports_total"),
+  "Prometheus diagnostics did not include aggregate transport gauges."
+);
+assert(
+  prometheusMetrics.includes("betterlogs_total_failures"),
+  "Prometheus diagnostics did not include aggregate failure counters."
+);
+assert(
   prometheusMetrics.includes('service="runtime-smoke"'),
   "Prometheus diagnostics did not include snapshot labels."
 );
 assert(
   prometheusMetrics.includes('invalid_label="normalized"'),
   "Prometheus diagnostics did not normalize label names."
+);
+
+const fetchDiagnostics = createFetchTransportDiagnosticsHandler([failingDelivery], {
+  format: "prometheus",
+  statusCode: "from-health"
+})();
+assert(fetchDiagnostics.status === 503, "Fetch diagnostics did not map unhealthy status.");
+assert(
+  fetchDiagnostics.headers["content-type"].startsWith("text/plain"),
+  "Fetch diagnostics did not return Prometheus content type."
+);
+
+let expressStatusCode = 0;
+const expressHeaders = new Map();
+let expressBody = "";
+createExpressTransportDiagnosticsHandler([failingDelivery], {
+  format: "json",
+  statusCode: "from-health"
+})(
+  {},
+  {
+    status(code) {
+      expressStatusCode = code;
+      return this;
+    },
+    setHeader(name, value) {
+      expressHeaders.set(name.toLowerCase(), value);
+    },
+    end(body) {
+      expressBody = body;
+    }
+  }
+);
+
+assert(expressStatusCode === 503, "Express diagnostics did not map unhealthy status.");
+assert(
+  expressHeaders.get("content-type").startsWith("application/json"),
+  "Express diagnostics did not return JSON content type."
+);
+assert(
+  JSON.parse(expressBody).status === "unhealthy",
+  "Express diagnostics did not return the diagnostics snapshot."
 );
 
 const tempDirectory = await mkdtemp(join(tmpdir(), "betterlogs-runtime-"));

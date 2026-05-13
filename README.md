@@ -1,6 +1,6 @@
 # @orionaisystems/betterlogs
 
-`@orionaisystems/betterlogs` is a reusable logging package for TypeScript projects that want elegant console output locally and stronger delivery guarantees in production. It keeps the default developer experience clean while supporting scoped child loggers, structured metadata, redaction, async context propagation, durable batching, durable spool inspection, pluggable transports, broker helpers, health-aware delivery, exporter-friendly diagnostics, Orion production presets, and framework adapters.
+`@orionaisystems/betterlogs` is a reusable logging package for TypeScript projects that want elegant console output locally and stronger delivery guarantees in production. It keeps the default developer experience clean while supporting scoped child loggers, structured metadata, redaction, async context propagation, durable batching, durable spool inspection, pluggable transports, broker helpers, health-aware delivery, exporter-friendly diagnostics, diagnostics endpoint adapters, Orion production presets, and framework adapters.
 
 ## Installation
 
@@ -88,7 +88,7 @@ Example output:
 - durable batching with spool-file persistence and acknowledgement-aware retries
 - CLI and programmatic inspection for durable spool, rotated log, and archive JSONL files
 - built-in buffering, file output, file rotation, archival retention, HTTP delivery, and queue helpers
-- transport retry, health tracking, circuit breaker wrapping, Prometheus-friendly diagnostics, and explicit `flush()` support
+- transport retry, health tracking, health transition hooks, circuit breaker wrapping, Prometheus-friendly diagnostics, and explicit `flush()` support
 - framework adapters for Express-style, Fastify-style, Koa-style, and fetch-style runtimes
 - redaction helpers, OpenTelemetry bridge utilities, and test-friendly memory transports
 
@@ -347,7 +347,14 @@ const delivery = createCircuitBreakerTransport({
     })
   }),
   failureThreshold: 3,
-  resetTimeoutMs: 5_000
+  resetTimeoutMs: 5_000,
+  onStateChange(transition) {
+    console.warn("Log delivery state changed", {
+      from: transition.previousState,
+      to: transition.currentState,
+      reason: transition.reason
+    });
+  }
 });
 
 const log = createLogger({ transports: [delivery] });
@@ -367,7 +374,33 @@ console.log(formatTransportDiagnosticsAsPrometheus(diagnostics));
 
 Health-aware transports expose state such as `healthy`, `degraded`, `unhealthy`, `open`, and `half-open` alongside counters and timestamps.
 
-`createTransportDiagnosticsSnapshot()` turns one or more health-aware transports into JSON-safe diagnostics with ISO timestamps, Unix millisecond fields, success and failure ratios, writability, open-circuit timing, aggregate status, and labels. `formatTransportDiagnosticsAsPrometheus()` renders the same snapshot as text metrics for lightweight scrape endpoints without adding a metrics SDK dependency.
+`createTransportDiagnosticsSnapshot()` turns one or more health-aware transports into JSON-safe diagnostics with ISO timestamps, Unix millisecond fields, success and failure ratios, writability, open-circuit timing, aggregate status, and labels. `formatTransportDiagnosticsAsPrometheus()` renders the same snapshot as text metrics for lightweight scrape endpoints without adding a metrics SDK dependency. The Prometheus formatter includes aggregate snapshot metrics plus per-transport metrics.
+
+### Diagnostics Endpoint Adapters
+
+Use the endpoint helpers when a service wants to expose JSON diagnostics or Prometheus metrics without adding a framework package to BetterLogs.
+
+```ts
+import {
+  createExpressTransportDiagnosticsHandler,
+  createFetchTransportDiagnosticsHandler
+} from "@orionaisystems/betterlogs";
+
+export const fetchMetrics = createFetchTransportDiagnosticsHandler([delivery], {
+  format: "prometheus",
+  statusCode: "from-health"
+});
+
+app.get(
+  "/internal/logging/diagnostics",
+  createExpressTransportDiagnosticsHandler([delivery], {
+    format: "json",
+    statusCode: "from-health"
+  })
+);
+```
+
+The same adapter family includes `createFastifyTransportDiagnosticsHandler()` and `createKoaTransportDiagnosticsMiddleware()`. By default, diagnostics endpoints return HTTP `200` so scrapers can collect degraded-state payloads; set `statusCode: "from-health"` when an unhealthy logging pipeline should return `503`.
 
 ## Orion Production Logging Preset
 
@@ -375,6 +408,7 @@ Orion services can use the production preset when they want the common BetterLog
 
 ```ts
 import {
+  createFetchTransportDiagnosticsHandler,
   createOrionProductionLoggingPreset,
   formatTransportDiagnosticsAsPrometheus
 } from "@orionaisystems/betterlogs";
@@ -395,6 +429,16 @@ const logging = createOrionProductionLoggingPreset({
     maxBatchSize: 25,
     flushIntervalMs: 1_000
   },
+  circuitBreaker: {
+    onStateChange(transition) {
+      console.warn("Log delivery state changed", {
+        currentState: transition.currentState,
+        previousState: transition.previousState,
+        reason: transition.reason,
+        transport: transition.name
+      });
+    }
+  },
   debugBurstLimit: {
     maxRecords: 100,
     intervalMs: 60_000
@@ -408,6 +452,13 @@ logging.logger.info("Task accepted", {
 await logging.flush();
 
 const metrics = formatTransportDiagnosticsAsPrometheus(logging.getDiagnostics());
+export const metricsHandler = createFetchTransportDiagnosticsHandler(
+  logging.healthTransports,
+  {
+    format: "prometheus",
+    statusCode: "from-health"
+  }
+);
 ```
 
 The preset configures JSON output, async request/correlation context, default redaction, optional durable HTTP delivery, health tracking, circuit breaking, debug burst control, and reusable delivery diagnostics. Pass `console: false` when the service should only emit through the configured production transport.
@@ -843,7 +894,7 @@ npm run smoke:runtime
 npm run clean
 ```
 
-`smoke:browser`, `smoke:exports`, `smoke:runtime`, and `typecheck:api` expect `dist/` to exist, so run them after `npm run build` when working locally. The browser smoke gate checks browser bundle artifacts and sourcemaps for Node-only leaks. The API type tests compile small consumer-style imports from the root package and browser subpath to catch accidental public surface regressions. The runtime smoke test exercises the Fetch/Fastify adapter behavior, transport diagnostics, Prometheus metric formatting, and the durable inspection CLI against the built package.
+`smoke:browser`, `smoke:exports`, `smoke:runtime`, and `typecheck:api` expect `dist/` to exist, so run them after `npm run build` when working locally. The browser smoke gate checks browser bundle artifacts and sourcemaps for Node-only leaks. The API type tests compile small consumer-style imports from the root package and browser subpath to catch accidental public surface regressions. The runtime smoke test exercises the Fetch/Fastify adapter behavior, transport diagnostics endpoints, health transition hooks, Prometheus metric formatting, and the durable inspection CLI against the built package.
 
 ## Release Flow
 
@@ -864,20 +915,20 @@ Then publish a GitHub release for the new tag from the repository UI to trigger 
 
 ## Design Notes
 
-`@orionaisystems/betterlogs` v0.10.0 keeps the runtime small while separating:
+`@orionaisystems/betterlogs` v0.11.0 keeps the runtime small while separating:
 
 - record creation and ambient binding resolution
 - redaction and serialization
 - formatter selection and JSON shaping
 - sampling and burst rate limiting
-- transport delivery, batching, retry, health tracking, and flushing
-- exporter-friendly transport diagnostics and metrics formatting
+- transport delivery, batching, retry, health tracking, health transition hooks, and flushing
+- exporter-friendly transport diagnostics, endpoint adapters, and metrics formatting
 - Orion production logging presets from lower-level transport primitives
 - hook observation
 - Node and browser entry points
 - runtime-specific adapter helpers
 - CLI/programmatic inspection for durable JSONL spool and archive files
-- browser bundle leak checks, compile-only public API type tests, and runtime adapter smoke tests for the root and browser package exports
+- browser bundle leak checks, compile-only public API type tests, and runtime adapter/diagnostics smoke tests for the root and browser package exports
 
 That separation makes it practical to add more outputs and integrations later without disturbing the logger API most callers use every day.
 
@@ -888,6 +939,7 @@ Future ideas for the package:
 - schema-driven structured event helpers for shared internal log contracts
 - additional metrics exporter adapters for services that already run a metrics SDK
 - additional production presets for OTLP and vendor-specific delivery patterns
+- consumer adoption guides for Orion and GeoCore logging boundaries
 - worker-thread and multi-process relay transports
 
 ## License

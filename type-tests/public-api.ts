@@ -1,8 +1,11 @@
 import {
   createAsyncContextBindingsProvider,
   createFastifyLoggingHooks,
+  createFetchTransportDiagnosticsHandler,
+  createKoaTransportDiagnosticsMiddleware,
   createOrionProductionLoggingPreset,
   createTransportDiagnosticsSnapshot,
+  createTransportDiagnosticsPayload,
   formatTransportDiagnosticsAsPrometheus,
   inspectDurableLogPaths,
   createLogger,
@@ -15,9 +18,12 @@ import {
   type FastifyLikeRequest,
   type FetchLikeRequest,
   type FetchLikeResponse,
+  type FetchDiagnosticsResponse,
   type Logger,
   type LogRecord,
-  type TransportDiagnosticsSnapshot
+  type TransportDiagnosticsPayload,
+  type TransportDiagnosticsSnapshot,
+  type TransportHealthTransition
 } from "@orionaisystems/betterlogs";
 import {
   createBrowserConsoleTransport,
@@ -144,6 +150,11 @@ const loggingPreset = createOrionProductionLoggingPreset({
   },
   labels: {
     surface: "type-test"
+  },
+  circuitBreaker: {
+    onStateChange(transition: TransportHealthTransition) {
+      void transition.currentState;
+    }
   }
 });
 
@@ -161,3 +172,32 @@ const prometheusMetrics = formatTransportDiagnosticsAsPrometheus(diagnostics, {
 
 void directDiagnostics;
 void prometheusMetrics;
+
+const diagnosticsPayload: TransportDiagnosticsPayload = createTransportDiagnosticsPayload(
+  loggingPreset.healthTransports,
+  {
+    format: "prometheus",
+    statusCode: "from-health",
+    labels: {
+      route: "metrics"
+    }
+  }
+);
+
+const fetchDiagnosticsHandler = createFetchTransportDiagnosticsHandler(
+  loggingPreset.healthTransports,
+  {
+    format: "json"
+  }
+);
+const fetchDiagnosticsResponse: FetchDiagnosticsResponse = fetchDiagnosticsHandler();
+
+const koaDiagnosticsMiddleware = createKoaTransportDiagnosticsMiddleware(
+  loggingPreset.healthTransports
+);
+koaDiagnosticsMiddleware({
+  status: 200
+});
+
+void diagnosticsPayload;
+void fetchDiagnosticsResponse;

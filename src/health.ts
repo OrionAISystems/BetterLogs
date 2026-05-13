@@ -4,6 +4,8 @@ import type {
   HealthTrackedTransportOptions,
   LogTransport,
   PrometheusTransportMetricsOptions,
+  TransportHealthTransitionHandler,
+  TransportHealthTransitionReason,
   TransportDiagnosticEntry,
   TransportDiagnosticsLabels,
   TransportDiagnosticsOptions,
@@ -134,6 +136,36 @@ function metricName(prefix: string | undefined, suffix: string): string {
   return `${base}_${suffix}`.replace(/[^a-zA-Z0-9_:]/g, "_");
 }
 
+function notifyStateChange(
+  handler: TransportHealthTransitionHandler | undefined,
+  previousState: TransportHealthState,
+  currentState: TransportHealthState,
+  reason: TransportHealthTransitionReason,
+  health: MutableTransportHealth
+): void {
+  if (!handler || previousState === currentState) {
+    return;
+  }
+
+  try {
+    const result = handler({
+      ...(health.name ? { name: health.name } : {}),
+      previousState,
+      currentState,
+      reason,
+      health: cloneHealth(health)
+    });
+
+    if (isPromiseLike(result)) {
+      void Promise.resolve(result).catch((error) => {
+        console.error("BetterLogs transport health transition handler failed", error);
+      });
+    }
+  } catch (error) {
+    console.error("BetterLogs transport health transition handler failed", error);
+  }
+}
+
 function createBaseHealth(name: string | undefined): MutableTransportHealth {
   return {
     name,
@@ -256,8 +288,37 @@ export function formatTransportDiagnosticsAsPrometheus(
     `# HELP ${metric("transport_success_ratio")} Successful write ratio for the transport.`,
     `# TYPE ${metric("transport_success_ratio")} gauge`,
     `# HELP ${metric("transport_open_remaining_ms")} Remaining open-circuit time in milliseconds.`,
-    `# TYPE ${metric("transport_open_remaining_ms")} gauge`
+    `# TYPE ${metric("transport_open_remaining_ms")} gauge`,
+    `# HELP ${metric("transports_total")} Total health-aware transports in the diagnostics snapshot.`,
+    `# TYPE ${metric("transports_total")} gauge`,
+    `# HELP ${metric("transports_degraded")} Degraded transports in the diagnostics snapshot.`,
+    `# TYPE ${metric("transports_degraded")} gauge`,
+    `# HELP ${metric("transports_unhealthy")} Unhealthy transports in the diagnostics snapshot.`,
+    `# TYPE ${metric("transports_unhealthy")} gauge`,
+    `# HELP ${metric("transports_open")} Open circuit breaker transports in the diagnostics snapshot.`,
+    `# TYPE ${metric("transports_open")} gauge`,
+    `# HELP ${metric("total_writes")} Total write attempts across health-aware transports.`,
+    `# TYPE ${metric("total_writes")} counter`,
+    `# HELP ${metric("total_successes")} Total successful writes across health-aware transports.`,
+    `# TYPE ${metric("total_successes")} counter`,
+    `# HELP ${metric("total_failures")} Total failed writes across health-aware transports.`,
+    `# TYPE ${metric("total_failures")} counter`
   ];
+  const snapshotLabels = formatLabels({
+    ...snapshot.labels,
+    ...normalizeLabels(options.labels),
+    status: snapshot.status
+  });
+
+  lines.push(
+    `${metric("transports_total")}${snapshotLabels} ${snapshot.totalTransportCount}`,
+    `${metric("transports_degraded")}${snapshotLabels} ${snapshot.degradedTransportCount}`,
+    `${metric("transports_unhealthy")}${snapshotLabels} ${snapshot.unhealthyTransportCount}`,
+    `${metric("transports_open")}${snapshotLabels} ${snapshot.openTransportCount}`,
+    `${metric("total_writes")}${snapshotLabels} ${snapshot.totalWrites}`,
+    `${metric("total_successes")}${snapshotLabels} ${snapshot.totalSuccesses}`,
+    `${metric("total_failures")}${snapshotLabels} ${snapshot.totalFailures}`
+  );
 
   for (const entry of snapshot.transports) {
     const labels = formatLabels({
@@ -304,43 +365,66 @@ export function createHealthTrackedTransport(
     health.state = "healthy";
   };
 
-  const onSuccess = (): void => {
+  const onSuccess = (reason: TransportHealthTransitionReason): void => {
+    const previousState = health.state;
     health.totalWrites += 1;
     health.totalSuccesses += 1;
     health.consecutiveFailures = 0;
     health.lastSuccessAt = new Date();
     health.lastErrorMessage = undefined;
     updateState();
+    notifyStateChange(
+      options.onStateChange,
+      previousState,
+      health.state,
+      reason,
+      health
+    );
   };
 
-  const onFailure = (error: unknown): void => {
+  const onFailure = (
+    error: unknown,
+    reason: TransportHealthTransitionReason
+  ): void => {
+    const previousState = health.state;
     health.totalWrites += 1;
     health.totalFailures += 1;
     health.consecutiveFailures += 1;
     health.lastFailureAt = new Date();
     health.lastErrorMessage = errorMessage(error);
     updateState();
+    notifyStateChange(
+      options.onStateChange,
+      previousState,
+      health.state,
+      reason,
+      health
+    );
   };
 
-  const run = async (task: () => unknown): Promise<void> => {
+  const run = async (
+    task: () => unknown,
+    successReason: TransportHealthTransitionReason,
+    failureReason: TransportHealthTransitionReason
+  ): Promise<void> => {
     try {
       const result = task();
       if (isPromiseLike(result)) {
         await result;
       }
-      onSuccess();
+      onSuccess(successReason);
     } catch (error) {
-      onFailure(error);
+      onFailure(error, failureReason);
       throw error;
     }
   };
 
   return {
     write(record) {
-      return run(() => options.transport.write(record));
+      return run(() => options.transport.write(record), "write-success", "write-failure");
     },
     flush() {
-      return run(() => options.transport.flush?.());
+      return run(() => options.transport.flush?.(), "flush-success", "flush-failure");
     },
     getHealth() {
       return cloneHealth(health);
@@ -358,16 +442,25 @@ export function createCircuitBreakerTransport(
   let halfOpenAttempts = 0;
 
   const closeCircuit = (): void => {
+    const previousState = health.state;
     health.state = "healthy";
     health.consecutiveFailures = 0;
     health.openedAt = undefined;
     health.openUntil = undefined;
     health.lastErrorMessage = undefined;
     halfOpenAttempts = 0;
+    notifyStateChange(
+      options.onStateChange,
+      previousState,
+      health.state,
+      "circuit-closed",
+      health
+    );
   };
 
   const openCircuit = (error: unknown): void => {
     const now = new Date();
+    const previousState = health.state;
     health.state = "open";
     health.totalFailures += 1;
     health.consecutiveFailures += 1;
@@ -376,6 +469,13 @@ export function createCircuitBreakerTransport(
     health.openedAt = now;
     health.openUntil = new Date(now.getTime() + resetTimeoutMs);
     halfOpenAttempts = 0;
+    notifyStateChange(
+      options.onStateChange,
+      previousState,
+      health.state,
+      "circuit-opened",
+      health
+    );
   };
 
   const noteSuccess = (): void => {
@@ -386,6 +486,7 @@ export function createCircuitBreakerTransport(
   };
 
   const noteFailure = (error: unknown): void => {
+    const previousState = health.state;
     health.totalWrites += 1;
 
     if (health.state === "half-open") {
@@ -403,10 +504,24 @@ export function createCircuitBreakerTransport(
       health.openUntil = new Date(Date.now() + resetTimeoutMs);
       health.state = "open";
       halfOpenAttempts = 0;
+      notifyStateChange(
+        options.onStateChange,
+        previousState,
+        health.state,
+        "circuit-opened",
+        health
+      );
       return;
     }
 
     health.state = "degraded";
+    notifyStateChange(
+      options.onStateChange,
+      previousState,
+      health.state,
+      "write-failure",
+      health
+    );
   };
 
   const ensureWritable = (): void => {
@@ -418,8 +533,16 @@ export function createCircuitBreakerTransport(
     }
 
     if (health.openUntil && health.openUntil.getTime() <= Date.now()) {
+      const previousState = health.state;
       health.state = "half-open";
       halfOpenAttempts = 0;
+      notifyStateChange(
+        options.onStateChange,
+        previousState,
+        health.state,
+        "circuit-half-opened",
+        health
+      );
       return;
     }
 

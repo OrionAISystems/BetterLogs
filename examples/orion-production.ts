@@ -1,4 +1,5 @@
 import {
+  createFetchTransportDiagnosticsHandler,
   createOrionProductionLoggingPreset,
   formatTransportDiagnosticsAsPrometheus,
   runWithLogContext
@@ -7,7 +8,7 @@ import {
 const logging = createOrionProductionLoggingPreset({
   scope: "orion-gateway",
   serviceName: "orion-gateway",
-  serviceVersion: "0.10.0",
+  serviceVersion: "0.11.0",
   environment: process.env.NODE_ENV ?? "development",
   http: {
     url: process.env.ORION_LOG_INGEST_URL ?? "https://logs.internal.example/ingest",
@@ -19,6 +20,16 @@ const logging = createOrionProductionLoggingPreset({
     filePath: "./.betterlogs/orion-gateway-spool.jsonl",
     maxBatchSize: 25,
     flushIntervalMs: 1_000
+  },
+  circuitBreaker: {
+    onStateChange(transition) {
+      console.warn("Log delivery state changed", {
+        currentState: transition.currentState,
+        previousState: transition.previousState,
+        reason: transition.reason,
+        transport: transition.name
+      });
+    }
   },
   debugBurstLimit: {
     maxRecords: 100,
@@ -51,3 +62,14 @@ await runWithLogContext(
 const diagnostics = logging.getDiagnostics();
 console.log(diagnostics.status, diagnostics.totalFailures);
 console.log(formatTransportDiagnosticsAsPrometheus(diagnostics));
+
+export const metricsHandler = createFetchTransportDiagnosticsHandler(
+  logging.healthTransports,
+  {
+    format: "prometheus",
+    labels: {
+      endpoint: "metrics"
+    },
+    statusCode: "from-health"
+  }
+);
